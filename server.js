@@ -9,7 +9,7 @@ const morgan = require('morgan');
 require('./config/db')();
 
 const app = express();
-const allowedOrigins = ["https://store-backend-one-lemon.vercel.app/", "https://store-frontend-silk.vercel.app/"];
+const allowedOrigins = ["https://store-backend-one-lemon.vercel.app/", "https://store-frontend-silk.vercel.app/","https://localhost:5173"];
 
 // Middleware
 app.use(cors({
