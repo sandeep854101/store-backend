@@ -3,21 +3,21 @@ const router = express.Router();
 const {
   getProducts,
   getProductById,
-  getTopProducts,
+  deleteProduct,
   createProduct,
-  updateProduct
+  updateProduct,
+  createProductReview,
+  getTopProducts,
 } = require('../controllers/productController');
-const upload = require('../middleware/uploadMiddleware');
 const { protect, admin } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware'); // ✅ correct import
 
-// Public routes
-router.get('/', getProducts);
+router.route('/').get(getProducts).post(protect, admin, upload.array('images', 10), createProduct);
+router.route('/:id/reviews').post(protect, createProductReview);
 router.get('/top', getTopProducts);
-router.get('/:id', getProductById);
-
-// Protected admin routes
-router.use(protect, admin);
-router.post('/', upload.array('images', 10), createProduct);
-router.put('/:id', upload.array('images', 10), updateProduct);
+router.route('/:id')
+  .get(getProductById)
+  .delete(protect, admin, deleteProduct)
+  .put(protect, admin, upload.array('images', 10), updateProduct);
 
 module.exports = router;

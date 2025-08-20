@@ -1,190 +1,143 @@
+// server/controllers/productController.js
+const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
-const cloudinary = require('../utils/cloudinary');
 
-// Create product with image handling
-const createProduct = async (req, res) => {
-  try {
-    let images = [];
+// @desc    Fetch all products
+// @route   GET /api/products
+// @access  Public
+const getProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find({});
+  res.json(products);
+});
 
-    // Case 1: If files are uploaded (via multer)
-    if (req.files && req.files.length > 0) {
-      images = await Promise.all(
-        req.files.map(async (file) => {
-          const b64 = Buffer.from(file.buffer).toString("base64");
-          const dataURI = "data:" + file.mimetype + ";base64," + b64;
+// @desc    Fetch single product
+// @route   GET /api/products/:id
+// @access  Public
+const getProductById = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
 
-          const result = await cloudinary.uploader.upload(dataURI, {
-            folder: 'products',
-          });
-
-          return {
-            url: result.secure_url,
-            public_id: result.public_id,
-          };
-        })
-      );
-    } 
-    // Case 2: If frontend sends image URLs directly
-else if (req.body.images && req.body.images.length > 0) {
-  images = req.body.images.map((img) => {
-    // if frontend sends plain string
-    if (typeof img === "string") {
-      return { url: img };
-    }
-    // if frontend already sends object like { url: "..." }
-    if (typeof img === "object" && img.url) {
-      return { url: img.url, public_id: img.public_id || undefined };
-    }
-    return null;
-  }).filter(Boolean);
-}
-
-
-    const product = new Product({
-      ...req.body,
-      images,
-      user: req.user._id,
-    });
-
-    await product.save();
-
-    res.status(201).json({
-      success: true,
-      product,
-    });
-
-  } catch (error) {
-    console.error('Product creation error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create product',
-      error: error.message,
-    });
+  if (product) {
+    res.json(product);
+  } else {
+    res.status(404);
+    throw new Error('Product not found');
   }
-};
+});
 
+// @desc    Delete a product
+// @route   DELETE /api/products/:id
+// @access  Private/Admin
+const deleteProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
 
-// Update product with image handling
-const updateProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
+  if (product) {
+    await product.deleteOne();
+    res.json({ message: 'Product removed' });
+  } else {
+    res.status(404);
+    throw new Error('Product not found');
+  }
+});
 
-    let images = product.images; // keep old images if not replaced
+// @desc    Create a product
+// @route   POST /api/products
+// @access  Private/Admin
+const createProduct = asyncHandler(async (req, res) => {
+  const product = new Product({
+    name: 'Sample name',
+    price: 0,
+    user: req.user._id,
+    image: '/images/sample.jpg',
+    brand: 'Sample brand',
+    category: 'Sample category',
+    countInStock: 0,
+    numReviews: 0,
+    description: 'Sample description',
+  });
 
-    // Case 1: If new files are uploaded
-    if (req.files && req.files.length > 0) {
-      // Delete old images from Cloudinary if they exist
-      await Promise.all(
-        product.images.map((image) =>
-          image.public_id ? cloudinary.uploader.destroy(image.public_id) : null
-        )
-      );
+  const createdProduct = await product.save();
+  res.status(201).json(createdProduct);
+});
 
-      images = await Promise.all(
-        req.files.map(async (file) => {
-          const b64 = Buffer.from(file.buffer).toString("base64");
-          const dataURI = "data:" + file.mimetype + ";base64," + b64;
+// @desc    Update a product
+// @route   PUT /api/products/:id
+// @access  Private/Admin
+const updateProduct = asyncHandler(async (req, res) => {
+  const { name, price, description, image, brand, category, countInStock } = req.body;
 
-          const result = await cloudinary.uploader.upload(dataURI, {
-            folder: 'products',
-          });
+  const product = await Product.findById(req.params.id);
 
-          return {
-            url: result.secure_url,
-            public_id: result.public_id,
-          };
-        })
-      );
-    } 
-    // Case 2: If frontend sends image URLs directly
-    else if (req.body.images && req.body.images.length > 0) {
-      images = req.body.images.map((url) => ({ url }));
-    }
+  if (product) {
+    product.name = name || product.name;
+    product.price = price || product.price;
+    product.description = description || product.description;
+    product.image = image || product.image;
+    product.brand = brand || product.brand;
+    product.category = category || product.category;
+    product.countInStock = countInStock || product.countInStock;
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, images },
-      { new: true, runValidators: true }
+    const updatedProduct = await product.save();
+    res.json(updatedProduct);
+  } else {
+    res.status(404);
+    throw new Error('Product not found');
+  }
+});
+
+// @desc    Create new review
+// @route   POST /api/products/:id/reviews
+// @access  Private
+const createProductReview = asyncHandler(async (req, res) => {
+  const { rating, comment } = req.body;
+
+  const product = await Product.findById(req.params.id);
+
+  if (product) {
+    const alreadyReviewed = product.reviews.find(
+      (r) => r.user.toString() === req.user._id.toString()
     );
 
-    res.json({
-      success: true,
-      product: updatedProduct,
-    });
-
-  } catch (error) {
-    console.error('Product update error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update product',
-      error: error.message,
-    });
-  }
-};
-
-
-// Fetch all products
-const getProducts = async (req, res) => {
-  try {
-    const pageSize = 8; 
-    const page = Number(req.query.pageNumber) || 1;
-
-    const keyword = req.query.keyword
-      ? { name: { $regex: req.query.keyword, $options: 'i' } }
-      : {};
-
-    const count = await Product.countDocuments({ ...keyword });
-    const products = await Product.find({ ...keyword })
-      .limit(pageSize)
-      .skip(pageSize * (page - 1));
-
-    res.json({
-      products,
-      page,
-      pages: Math.ceil(count / pageSize),
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-
-// Fetch single product
-const getProductById = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-
-    if (product) {
-      res.json(product);
-    } else {
-      res.status(404).json({ error: 'Product not found' });
+    if (alreadyReviewed) {
+      res.status(400);
+      throw new Error('Product already reviewed');
     }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 
+    const review = {
+      name: req.user.name,
+      rating: Number(rating),
+      comment,
+      user: req.user._id,
+    };
 
-// Get top rated products
-const getTopProducts = async (req, res) => {
-  try {
-    const products = await Product.find({}).sort({ rating: -1 }).limit(4);
-    res.json(products);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    product.reviews.push(review);
+
+    product.numReviews = product.reviews.length;
+    product.rating =
+      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
+      product.reviews.length;
+
+    await product.save();
+    res.status(201).json({ message: 'Review added' });
+  } else {
+    res.status(404);
+    throw new Error('Product not found');
   }
-};
+});
+
+// @desc    Get top rated products
+// @route   GET /api/products/top
+// @access  Public
+const getTopProducts = asyncHandler(async (req, res) => {
+  const products = await Product.find({}).sort({ rating: -1 }).limit(3);
+  res.json(products);
+});
 
 module.exports = {
-  createProduct,
-  updateProduct,
   getProducts,
   getProductById,
+  deleteProduct,
+  createProduct,
+  updateProduct,
+  createProductReview,
   getTopProducts,
 };

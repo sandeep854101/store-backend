@@ -79,7 +79,7 @@ const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
 
   if (user) {
-    await user.remove();
+    await user.deleteOne();
     res.json({ message: 'User removed' });
   } else {
     res.status(404);
@@ -120,65 +120,46 @@ const createProduct = asyncHandler(async (req, res) => {
   const createdProduct = await product.save();
   res.status(201).json(createdProduct);
 });
-// @desc    Update a product
-// @route   PUT /api/admin/products/:id
-// @access  Private/Admin
 
-
-// @desc    Delete a product
-// @route   DELETE /api/admin/products/:id
-// @access  Private/Admin
 // Helper: extract public_id from Cloudinary URL
 const getPublicIdFromUrl = (url) => {
   try {
-    // Example URL: https://res.cloudinary.com/dbgel16ay/image/upload/v1755665461/products/jgikrrhmz8dn5y7eiimm.jpg
-    const parts = url.split("/upload/"); // ["https://res.cloudinary.com/...","v1755665461/products/jgikrrhmz8dn5y7eiimm.jpg"]
+    const parts = url.split("/upload/");
     if (!parts[1]) return null;
 
     const pathAfterUpload = parts[1];
-    // Remove version number (v123456...) if exists
     const pathParts = pathAfterUpload.split("/");
     let startIndex = 0;
     if (pathParts[0].startsWith("v")) startIndex = 1;
-    const publicIdWithExt = pathParts.slice(startIndex).join("/"); // "products/jgikrrhmz8dn5y7eiimm.jpg"
-    const public_id = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf(".")); // remove extension
-    return public_id;
+    const publicIdWithExt = pathParts.slice(startIndex).join("/");
+    return publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf("."));
   } catch {
     return null;
   }
 };
 
-const deleteProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
+// @desc    Delete a product
+// @route   DELETE /api/admin/products/:id
+// @access  Private/Admin
+const deleteProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+  if (!product) {
+    return res.status(404).json({ message: "Product not found" });
+  }
 
-    // Delete images from Cloudinary
-    if (product.images && product.images.length > 0) {
-      for (let img of product.images) {
-        const public_id = getPublicIdFromUrl(img.url);
-        if (public_id) {
-          try {
-            await cloudinary.uploader.destroy(public_id);
-          } catch (err) {
-            console.error("Cloudinary delete error:", err.message);
-          }
-        }
+  if (product.images && product.images.length > 0) {
+    for (let img of product.images) {
+      const public_id = getPublicIdFromUrl(img.url);
+      if (public_id) {
+        await cloudinary.uploader.destroy(public_id);
       }
     }
-
-    // Delete product from MongoDB
-    await Product.deleteOne({ _id: product._id });
-
-    return res.json({ message: "Product removed successfully" });
-  } catch (error) {
-    console.error("Delete product error:", error.message);
-    return res.status(500).json({ message: "Server error while deleting product" });
   }
-};
+
+  await Product.deleteOne({ _id: product._id });
+  res.json({ message: "Product removed successfully" });
+});
 
 // @desc    Get all orders
 // @route   GET /api/admin/orders
@@ -208,21 +189,21 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 });
-// server/controllers/adminController.js
+
+// @desc    Update a product
+// @route   PUT /api/admin/products/:id
+// @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
   
   const product = await Product.findById(req.params.id);
 
   if (product) {
-    // Handle image updates
     if (req.files && req.files.images) {
-      // Delete old images from Cloudinary
       for (const image of product.images) {
         await cloudinary.uploader.destroy(image.public_id);
       }
       
-      // Upload new images
       const images = [];
       for (const file of req.files.images) {
         const result = await cloudinary.uploader.upload(file.tempFilePath, {
