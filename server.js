@@ -77,4 +77,7 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
+app.get('/', (req, res) => {
+  res.send("backend is running");
+});
 module.exports = app;
