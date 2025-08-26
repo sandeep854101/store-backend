@@ -11,10 +11,10 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   const usersCount = await User.countDocuments();
   const productsCount = await Product.countDocuments();
   const ordersCount = await Order.countDocuments();
-  
+
   const orders = await Order.find();
   const revenue = orders.reduce((acc, order) => acc + order.totalPrice, 0);
-  
+
   res.json({
     usersCount,
     productsCount,
@@ -101,10 +101,13 @@ const getProducts = asyncHandler(async (req, res) => {
 const createProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
 
-  let images = [];
-  if (Array.isArray(req.files)) {
-    images = req.files.map(file => ({ url: `/uploads/${file.filename}` }));
+  if (!req.file) {
+    return res.status(400).json({ message: "Image is required" });
   }
+
+  const result = await cloudinary.uploader.upload(req.file.path, {
+    folder: "products"
+  });
 
   const product = new Product({
     name,
@@ -113,7 +116,7 @@ const createProduct = asyncHandler(async (req, res) => {
     category,
     brand,
     stock,
-    images,
+    image: result.secure_url, // store only the URL
     user: req.user._id,
   });
 
@@ -121,22 +124,8 @@ const createProduct = asyncHandler(async (req, res) => {
   res.status(201).json(createdProduct);
 });
 
-// Helper: extract public_id from Cloudinary URL
-const getPublicIdFromUrl = (url) => {
-  try {
-    const parts = url.split("/upload/");
-    if (!parts[1]) return null;
 
-    const pathAfterUpload = parts[1];
-    const pathParts = pathAfterUpload.split("/");
-    let startIndex = 0;
-    if (pathParts[0].startsWith("v")) startIndex = 1;
-    const publicIdWithExt = pathParts.slice(startIndex).join("/");
-    return publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf("."));
-  } catch {
-    return null;
-  }
-};
+// Helper: extract public_id from Cloudinary URL
 
 // @desc    Delete a product
 // @route   DELETE /api/admin/products/:id
@@ -146,15 +135,6 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
   if (!product) {
     return res.status(404).json({ message: "Product not found" });
-  }
-
-  if (product.images && product.images.length > 0) {
-    for (let img of product.images) {
-      const public_id = getPublicIdFromUrl(img.url);
-      if (public_id) {
-        await cloudinary.uploader.destroy(public_id);
-      }
-    }
   }
 
   await Product.deleteOne({ _id: product._id });
@@ -177,7 +157,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   if (order) {
     order.status = req.body.status;
-    
+
     if (req.body.status === 'Delivered') {
       order.deliveredAt = Date.now();
     }
@@ -195,26 +175,15 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
-  
+
   const product = await Product.findById(req.params.id);
 
   if (product) {
-    if (req.files && req.files.images) {
-      for (const image of product.images) {
-        await cloudinary.uploader.destroy(image.public_id);
-      }
-      
-      const images = [];
-      for (const file of req.files.images) {
-        const result = await cloudinary.uploader.upload(file.tempFilePath, {
-          folder: 'products'
-        });
-        images.push({
-          url: result.secure_url,
-          public_id: result.public_id
-        });
-      }
-      req.body.images = images;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "products"
+      });
+      product.image = result.secure_url;
     }
 
     product.name = name || product.name;
@@ -228,9 +197,10 @@ const updateProduct = asyncHandler(async (req, res) => {
     res.json(updatedProduct);
   } else {
     res.status(404);
-    throw new Error('Product not found');
+    throw new Error("Product not found");
   }
 });
+
 
 module.exports = {
   getDashboardStats,

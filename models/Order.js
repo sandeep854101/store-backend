@@ -21,8 +21,9 @@ const orderSchema = new mongoose.Schema({
   ],
   shippingAddress: {
     address: { type: String, required: true },
+    number: { type: Number, required: true },
     city: { type: String, required: true },
-    postalCode: { type: String, required: true },
+    pinCode: { type: Number, required: true },
     country: { type: String, required: true },
   },
   paymentMethod: {
@@ -48,6 +49,11 @@ const orderSchema = new mongoose.Schema({
     required: true,
     default: 'Placed',
     enum: ['Placed', 'Packed', 'Shipped', 'Delivered'],
+  },
+  isDelivered:{
+     type: Boolean,
+    required: true,
+    default: false,
   },
   deliveredAt: {
     type: Date,

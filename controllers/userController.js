@@ -44,7 +44,7 @@ const authUser = asyncHandler(async (req, res) => {
 // @route   POST /api/users/register
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, phone } = req.body;
+  const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Name, email, and password are required' });
@@ -63,7 +63,7 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: 'User already exists' });
   }
 
-  const user = await User.create({ name, email, password, phone });
+  const user = await User.create({ name, email, password });
 
   if (!user) {
     return res.status(400).json({ message: 'Invalid user data' });
@@ -73,7 +73,6 @@ const registerUser = asyncHandler(async (req, res) => {
     _id: user._id,
     name: user.name,
     email: user.email,
-    phone: user.phone,
     isAdmin: user.isAdmin,
     token: generateToken(user._id),
   });
@@ -113,6 +112,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     _id: updatedUser._id,
     name: updatedUser.name,
     email: updatedUser.email,
+    address:updatedUser.address,
+    phone:updatedUser.phone,
     isAdmin: updatedUser.isAdmin,
     token: generateToken(updatedUser._id),
   });
@@ -162,7 +163,7 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   const { shippingAddress } = req.body;
-  if (!shippingAddress?.address || !shippingAddress?.city || !shippingAddress?.postalCode || !shippingAddress?.country) {
+  if (!shippingAddress?.address || !shippingAddress?.city || !shippingAddress?.pinCode|| !shippingAddress?.phone || !shippingAddress?.country) {
     return res.status(400).json({ message: 'Complete shipping address is required' });
   }
 

@@ -35,12 +35,10 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  images: [
-  {
-    url: { type: String, required: true },
-    public_id: { type: String } // optional if URL is just pasted
+  image: {
+    type: String,
+     required: true 
   }
-]
 }, {
   timestamps: true,
 });
