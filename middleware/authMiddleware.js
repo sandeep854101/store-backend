@@ -29,12 +29,28 @@ const protect = asyncHandler(async (req, res, next) => {
   return res.status(401).json({ message: 'Not authorized, no token provided' });
 });
 
-// Admin middleware: Check admin role
+// Admin middleware
 const admin = (req, res, next) => {
-  if (req.user?.isAdmin) {
+  if (req.user?.role === 'admin') {
     return next();
   }
   return res.status(403).json({ message: 'Access denied, admin only' });
 };
 
-module.exports = { protect, admin };
+// Delivery middleware
+const delivery = (req, res, next) => {
+  if (req.user?.role === 'delivery') {
+    return next();
+  }
+  return res.status(403).json({ message: 'Access denied, delivery staff only' });
+};
+
+// Admin or Delivery
+const adminOrDelivery = (req, res, next) => {
+  if (['admin', 'delivery'].includes(req.user?.role)) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Access denied, admin or delivery only' });
+};
+
+module.exports = { protect, admin, delivery, adminOrDelivery };

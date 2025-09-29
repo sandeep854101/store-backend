@@ -9,8 +9,6 @@ const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validatePassword = (password) => password && password.length >= 8;
 
 // ------------------- Auth User -------------------
-// @route   POST /api/users/login
-// @access  Public
 const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -32,7 +30,7 @@ const authUser = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
+      role: user.role,
       token: generateToken(user._id),
     });
   }
@@ -41,8 +39,6 @@ const authUser = asyncHandler(async (req, res) => {
 });
 
 // ------------------- Register User -------------------
-// @route   POST /api/users/register
-// @access  Public
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -63,17 +59,13 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: 'User already exists' });
   }
 
-  const user = await User.create({ name, email, password });
-
-  if (!user) {
-    return res.status(400).json({ message: 'Invalid user data' });
-  }
+  const user = await User.create({ name, email, password, role: 'user' });
 
   return res.status(201).json({
     _id: user._id,
     name: user.name,
     email: user.email,
-    isAdmin: user.isAdmin,
+    role: user.role,
     token: generateToken(user._id),
   });
 });
@@ -96,7 +88,6 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 
   user.name = req.body.name || user.name;
   user.email = req.body.email || user.email;
-  user.address = req.body.address || user.address;
   user.phone = req.body.phone || user.phone;
 
   if (req.body.password) {
@@ -112,9 +103,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     _id: updatedUser._id,
     name: updatedUser.name,
     email: updatedUser.email,
-    address:updatedUser.address,
-    phone:updatedUser.phone,
-    isAdmin: updatedUser.isAdmin,
+    phone: updatedUser.phone,
+    role: updatedUser.role,
     token: generateToken(updatedUser._id),
   });
 });
@@ -163,14 +153,20 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   const { shippingAddress } = req.body;
-  if (!shippingAddress?.address || !shippingAddress?.city || !shippingAddress?.pinCode|| !shippingAddress?.phone || !shippingAddress?.country) {
+  if (
+    !shippingAddress?.address ||
+    !shippingAddress?.city ||
+    !shippingAddress?.pinCode ||
+    !shippingAddress?.number ||
+    !shippingAddress?.country
+  ) {
     return res.status(400).json({ message: 'Complete shipping address is required' });
   }
 
   const orderItems = user.cart.map((item) => ({
     name: item.product.name,
     quantity: item.quantity,
-    image: item.product.images[0].url,
+    image: item.product.images[0], // fixed
     price: item.product.price,
     product: item.product._id,
   }));
@@ -197,11 +193,16 @@ const getMyOrders = asyncHandler(async (req, res) => {
   res.json(orders);
 });
 
+// 🟢 Admin: get any order | Staff: get assigned orders | User: own orders
 const getOrderById = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id).populate('user', 'name email');
   if (!order) return res.status(404).json({ message: 'Order not found' });
 
-  if (order.user._id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+  if (
+    order.user._id.toString() !== req.user._id.toString() &&
+    req.user.role !== 'admin' &&
+    (!order.assignedTo || order.assignedTo.toString() !== req.user._id.toString())
+  ) {
     return res.status(403).json({ message: 'Not authorized to access this order' });
   }
 

@@ -20,16 +20,20 @@ const orderSchema = new mongoose.Schema({
     },
   ],
   shippingAddress: {
-    address: { type: String, required: true },
-    number: { type: Number, required: true },
-    city: { type: String, required: true },
-    pinCode: { type: Number, required: true },
-    country: { type: String, required: true },
+    type: Object,
+    required: true,
   },
   paymentMethod: {
     type: String,
     required: true,
     default: 'COD',
+    enum: ['COD', 'Razorpay', 'Stripe', 'PayPal'],
+  },
+  paymentResult: {
+    id: { type: String },
+    status: { type: String },
+    update_time: { type: String },
+    email_address: { type: String },
   },
   totalPrice: {
     type: Number,
@@ -48,15 +52,19 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: true,
     default: 'Placed',
-    enum: ['Placed', 'Packed', 'Shipped', 'Delivered'],
+    enum: ['Placed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'],
   },
-  isDelivered:{
-     type: Boolean,
+  isDelivered: {
+    type: Boolean,
     required: true,
     default: false,
   },
   deliveredAt: {
     type: Date,
+  },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId, // ✅ Staff assigned to deliver
+    ref: 'User',
   },
 }, {
   timestamps: true,

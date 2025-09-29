@@ -10,14 +10,19 @@ const {
   getTopProducts,
 } = require('../controllers/productController');
 const { protect, admin } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware'); // ✅ correct import
+const upload = require('../middleware/uploadMiddleware');
 
+// Public
 router.route('/').get(getProducts).post(protect, admin, upload.array('images', 10), createProduct);
-router.route('/:id/reviews').post(protect, createProductReview);
 router.get('/top', getTopProducts);
+
+// Reviews
+router.route('/:id/reviews').post(protect, createProductReview);
+
+// Product operations
 router.route('/:id')
   .get(getProductById)
-  .delete(protect, admin, deleteProduct)
-  .put(protect, admin, upload.array('images', 10), updateProduct);
+  .put(protect, admin, upload.array('images', 10), updateProduct)
+  .delete(protect, admin, deleteProduct);
 
 module.exports = router;

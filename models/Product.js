@@ -4,6 +4,7 @@ const productSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
+    trim: true,
   },
   description: {
     type: String,
@@ -17,6 +18,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
+    index: true, // helps in filtering
   },
   brand: {
     type: String,
@@ -35,10 +37,11 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  image: {
-    type: String,
-     required: true 
-  }
+  images: [
+  { url: String, public_id: String }
+],
+stock: { type: Number, required: true, default: 0 },
+
 }, {
   timestamps: true,
 });
