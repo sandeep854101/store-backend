@@ -1,20 +1,16 @@
-// server/controllers/adminController.js
 const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
 const cloudinary = require("../utils/cloudinary");
 
-// ---------------- Dashboard ----------------
-// @desc    Get dashboard stats
-// @route   GET /api/admin/dashboard
-// @access  Private/Admin
+
 const getDashboardStats = asyncHandler(async (req, res) => {
   const usersCount = await User.countDocuments();
   const productsCount = await Product.countDocuments();
   const ordersCount = await Order.countDocuments();
 
-  const orders = await Order.find();
+  const orders = await Order.find();  
   const revenue = orders.reduce((acc, order) => acc + order.totalPrice, 0);
 
   const deliveredOrders = await Order.countDocuments({ status: "Delivered" });
@@ -95,12 +91,30 @@ const getProducts = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const createProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
-  if (!req.file) return res.status(400).json({ message: "Image is required" });
-  const imageUrls = [];
-  if (req.files) {
-    for (const file of req.files) {
-      const result = await cloudinary.uploader.upload(file.path, { folder: 'products' });
-      imageUrls.push({ url: result.secure_url, public_id: result.public_id });
+  
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: "At least one image is required" });
+  }
+
+  // Upload images to Cloudinary from buffer
+  const uploadedImages = [];
+  for (const file of req.files) {
+    try {
+      // Convert buffer to base64 for Cloudinary
+      const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      
+      const result = await cloudinary.uploader.upload(dataUri, { 
+        folder: 'products',
+        resource_type: 'image'
+      });
+      
+      uploadedImages.push({ 
+        url: result.secure_url, 
+        public_id: result.public_id 
+      });
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      return res.status(500).json({ message: 'Error uploading image to Cloudinary' });
     }
   }
 
@@ -111,10 +125,9 @@ const createProduct = asyncHandler(async (req, res) => {
     category,
     brand,
     stock,
-    images: imageUrls,
+    images: uploadedImages,
     user: req.user._id,
   });
-
 
   const createdProduct = await product.save();
   res.status(201).json(createdProduct);
@@ -127,20 +140,44 @@ const updateProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
 
   const product = await Product.findById(req.params.id);
-
   if (!product) {
-    res.status(404);
-    throw new Error("Product not found");
+    return res.status(404).json({ message: "Product not found" });
   }
 
-  // Handle multiple images
+  // Handle multiple images if new files are uploaded
   if (req.files && req.files.length > 0) {
-    const imageUrls = [];
-    for (const file of req.files) {
-      const result = await cloudinary.uploader.upload(file.path, { folder: 'products' });
-      imageUrls.push({ url: result.secure_url, public_id: result.public_id });
+    // Delete old images from Cloudinary
+    if (product.images && product.images.length > 0) {
+      for (const img of product.images) {
+        try {
+          await cloudinary.uploader.destroy(img.public_id);
+        } catch (error) {
+          console.error('Error deleting old image from Cloudinary:', error);
+        }
+      }
     }
-    product.images = imageUrls; // replace existing images with new ones
+
+    // Upload new images
+    const uploadedImages = [];
+    for (const file of req.files) {
+      try {
+        const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        
+        const result = await cloudinary.uploader.upload(dataUri, { 
+          folder: 'products',
+          resource_type: 'image'
+        });
+        
+        uploadedImages.push({ 
+          url: result.secure_url, 
+          public_id: result.public_id 
+        });
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return res.status(500).json({ message: 'Error uploading image to Cloudinary' });
+      }
+    }
+    product.images = uploadedImages;
   }
 
   // Update other fields
@@ -162,9 +199,15 @@ const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
-  // remove from cloudinary if exists
-  if (product.cloudinaryId) {
-    await cloudinary.uploader.destroy(product.cloudinaryId);
+  // Delete all images from Cloudinary
+  if (product.images && product.images.length > 0) {
+    for (const img of product.images) {
+      try {
+        await cloudinary.uploader.destroy(img.public_id);
+      } catch (error) {
+        console.error('Error deleting image from Cloudinary:', error);
+      }
+    }
   }
 
   await product.deleteOne();

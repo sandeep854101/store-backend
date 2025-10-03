@@ -14,29 +14,36 @@ const {
   updateOrderStatus,
 } = require('../controllers/adminController');
 const { protect, admin } = require('../middleware/authMiddleware');
+const { upload, handleMulterError } = require('../middleware/uploadMiddleware');
 
-// Cloudinary upload handled inside controller, no need for local upload
-const upload = require('../middleware/uploadMiddleware');
+// Apply protect and admin middleware to all routes
+router.use(protect, admin);
 
-router.use(protect, admin); // All routes protected & admin only
-
+// Dashboard
 router.get('/dashboard', getDashboardStats);
 
 // Users
-router.route('/users').get(getUsers);
-router.route('/users/:id').get(getUserById).put(updateUser).delete(deleteUser);
+router.route('/users')
+  .get(getUsers);
 
-// Products
+router.route('/users/:id')
+  .get(getUserById)
+  .put(updateUser)
+  .delete(deleteUser);
+
+// Products - Add handleMulterError middleware
 router.route('/products')
   .get(getProducts)
-  .post(upload.array('images', 10), createProduct);
+  .post(upload.array('images', 10), handleMulterError, createProduct);
 
 router.route('/products/:id')
-  .put(upload.array('images', 10), updateProduct)
+  .put(upload.array('images', 10), handleMulterError, updateProduct)
   .delete(deleteProduct);
 
 // Orders
-router.route('/orders').get(getOrders);
+router.route('/orders')
+  .get(getOrders);
+
 router.put('/orders/:id/status', updateOrderStatus);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 // server/controllers/productController.js
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
+const cloudinary = require('../utils/cloudinary'); // Make sure to import cloudinary
 
 // @desc    Fetch all products
 // @route   GET /api/products
@@ -39,7 +40,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Create a product (sample defaults)
+// @desc    Create a product
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = asyncHandler(async (req, res) => {
@@ -49,13 +50,25 @@ const createProduct = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "At least one image is required" });
   }
 
-  // Upload all images directly to Cloudinary
+  // Upload all images from buffer to Cloudinary
   const uploadedImages = [];
   for (const file of req.files) {
-    const result = await cloudinary.uploader.upload(file.path, {
-      folder: 'products'
-    });
-    uploadedImages.push({ url: result.secure_url, public_id: result.public_id });
+    try {
+      // Convert buffer to data URI for Cloudinary
+      const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      
+      const result = await cloudinary.uploader.upload(dataUri, {
+        folder: 'products',
+        resource_type: 'image'
+      });
+      uploadedImages.push({ 
+        url: result.secure_url, 
+        public_id: result.public_id 
+      });
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      return res.status(500).json({ message: 'Error uploading image to Cloudinary' });
+    }
   }
 
   const product = new Product({
@@ -65,7 +78,7 @@ const createProduct = asyncHandler(async (req, res) => {
     category,
     brand,
     stock,
-    images: uploadedImages, // now supporting multiple images
+    images: uploadedImages,
     user: req.user._id,
   });
 
@@ -76,7 +89,6 @@ const createProduct = asyncHandler(async (req, res) => {
 // @desc    Update a product
 // @route   PUT /api/products/:id
 // @access  Private/Admin
-
 const updateProduct = asyncHandler(async (req, res) => {
   const { name, description, price, category, brand, stock } = req.body;
 
@@ -90,16 +102,32 @@ const updateProduct = asyncHandler(async (req, res) => {
     // Optional: delete previous images from Cloudinary
     if (product.images && product.images.length > 0) {
       for (const img of product.images) {
-        await cloudinary.uploader.destroy(img.public_id);
+        try {
+          await cloudinary.uploader.destroy(img.public_id);
+        } catch (error) {
+          console.error('Error deleting old image from Cloudinary:', error);
+        }
       }
     }
 
     const uploadedImages = [];
     for (const file of req.files) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: 'products'
-      });
-      uploadedImages.push({ url: result.secure_url, public_id: result.public_id });
+      try {
+        // Convert buffer to data URI for Cloudinary
+        const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        
+        const result = await cloudinary.uploader.upload(dataUri, {
+          folder: 'products',
+          resource_type: 'image'
+        });
+        uploadedImages.push({ 
+          url: result.secure_url, 
+          public_id: result.public_id 
+        });
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return res.status(500).json({ message: 'Error uploading image to Cloudinary' });
+      }
     }
 
     product.images = uploadedImages;
@@ -116,7 +144,6 @@ const updateProduct = asyncHandler(async (req, res) => {
   const updatedProduct = await product.save();
   res.json(updatedProduct);
 });
-
 // @desc    Create new review
 // @route   POST /api/products/:id/reviews
 // @access  Private

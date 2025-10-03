@@ -10,10 +10,13 @@ const {
   getTopProducts,
 } = require('../controllers/productController');
 const { protect, admin } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware');
+const { upload, handleMulterError } = require('../middleware/uploadMiddleware');
 
 // Public
-router.route('/').get(getProducts).post(protect, admin, upload.array('images', 10), createProduct);
+router.route('/')
+  .get(getProducts)
+  .post(protect, admin, upload.array('images', 10), handleMulterError, createProduct);
+
 router.get('/top', getTopProducts);
 
 // Reviews
@@ -22,7 +25,7 @@ router.route('/:id/reviews').post(protect, createProductReview);
 // Product operations
 router.route('/:id')
   .get(getProductById)
-  .put(protect, admin, upload.array('images', 10), updateProduct)
+  .put(protect, admin, upload.array('images', 10), handleMulterError, updateProduct)
   .delete(protect, admin, deleteProduct);
 
 module.exports = router;
